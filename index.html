@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Recolecta App — Bogotá</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js para estadísticas -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/phosphor-icons"></script>
+
+  <style>
+    html,body { height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#f3f4f6 0%, #e6f0ea 100%);
+      margin: 0;
+      -webkit-font-smoothing:antialiased;
+    }
+
+    /* Simple view switcher */
+    .view { display: none; }
+    .view.active { display: block; animation: fadeIn .28s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+
+    /* Small helpers */
+    .chip { padding: .25rem .6rem; border-radius: 999px; font-size: .8rem; display:inline-flex; align-items:center; gap:.4rem; }
+    .shadow-soft { box-shadow: 0 8px 24px rgba(16,24,40,.06); }
+    /* Keep iframe-friendly: avoid external fonts that might be blocked, we used system fonts mostly. */
+  </style>
+</head>
+<body>
+
+  <!-- App container -->
+  <div id="app" class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-4xl bg-white rounded-2xl overflow-hidden shadow-soft grid grid-cols-1 md:grid-cols-3">
+
+      <!-- LEFT: Sidebar / Header -->
+      <aside class="md:col-span-1 p-6 bg-gradient-to-b from-green-600 to-green-500 text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+            <i class="ph-recycle-bold text-2xl"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold">Recolecta App</h2>
+            <p class="text-sm opacity-90">Bogotá • Tu aliado en el reciclaje</p>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <p class="text-sm opacity-90">Usuario:</p>
+          <h3 id="userName" class="text-lg font-semibold">Invitado</h3>
+        </div>
+
+        <div class="mt-6">
+          <p class="text-sm opacity-90">Puntos</p>
+          <div class="flex items-center gap-3 mt-1">
+            <div class="chip bg-white/20"> <i class="ph-star"></i> <span id="pts">0</span> pts</div>
+            <div class="chip bg-white/10"> <i class="ph-box"></i> <span id="kg">0</span> kg</div>
+          </div>
+        </div>
+
+        <nav class="mt-6 space-y-2">
+          <button onclick="showView('dashboard-view')" class="w-full text-left px-3 py-2 rounded-md bg-white/8 hover:bg-white/12">Dashboard</button>
+          <button onclick="showView('request-view')" class="w-full text-left px-3 py-2 rounded-md bg-white/8 hover:bg-white/12">Solicitar recolección</button>
+          <button onclick="showView('classify-view')" class="w-full text-left px-3 py-2 rounded-md bg-white/8 hover:bg-white/12">Clasificación de residuos</button>
+          <button onclick="showView('stats-view')" class="w-full text-left px-3 py-2 rounded-md bg-white/8 hover:bg-white/12">Estadísticas</button>
+          <button onclick="showView('requests-list-view')" class="w-full text-left px-3 py-2 rounded-md bg-white/8 hover:bg-white/12">Mis solicitudes</button>
+        </nav>
+
+        <div class="mt-6 text-xs opacity-90">
+          <p>App local — Datos simulados</p>
+          <p class="mt-2">Guarda el archivo en tu equipo y ábrelo con un navegador.</p>
+        </div>
+
+        <div class="mt-6">
+          <button id="logoutBtn" onclick="logout()" class="w-full bg-white text-green-600 font-semibold py-2 rounded-lg">Cerrar sesión</button>
+        </div>
+
+      </aside>
+
+      <!-- RIGHT: Main content -->
+      <main class="md:col-span-2 p-6 space-y-6">
+
+        <!-- LOGIN VIEW (modal-like inside main) -->
+        <section id="login-view" class="view active bg-white rounded-lg p-6 shadow">
+          <div class="md:flex md:gap-6">
+            <div class="md:w-1/2">
+              <h2 class="text-2xl font-bold">Inicia sesión</h2>
+              <p class="text-sm text-gray-600 mt-1">Usa un correo para comenzar (simulado).</p>
+
+              <form id="loginForm" class="mt-6 space-y-3" onsubmit="event.preventDefault(); login();">
+                <input id="email" type="email" placeholder="Correo electrónico" class="w-full px-4 py-2 border rounded-lg" required value="usuario@ejemplo.com" />
+                <input id="password" type="password" placeholder="Contraseña" class="w-full px-4 py-2 border rounded-lg" required value="password" />
+                <div class="flex gap-3">
+                  <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold">Ingresar</button>
+                  <button type="button" onclick="simulateLoginQuick()" class="px-4 py-2 border rounded-lg">Ingresar demo</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="md:w-1/2 mt-6 md:mt-0">
+              <h3 class="font-semibold">¿Qué hace la app?</h3>
+              <ul class="mt-3 list-disc pl-5 text-sm text-gray-700 space-y-1">
+                <li>Solicita recolección a domicilio en Bogotá.</li>
+                <li>Aprende a clasificar todos los tipos de residuos.</li>
+                <li>Visualiza estadísticas mensuales simuladas.</li>
+                <li>Gana puntos por reciclar (simulado).</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- DASHBOARD -->
+        <section id="dashboard-view" class="view bg-white rounded-lg p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-bold">Panel</h2>
+              <p class="text-sm text-gray-500">Resumen rápido — Bogotá</p>
+            </div>
+
+            <div class="text-right">
+              <p class="text-sm text-gray-500">Kilos reciclados este mes</p>
+              <p id="monthlyKg" class="text-xl font-bold">0 kg</p>
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="p-4 border rounded-lg">
+              <p class="text-sm text-gray-500">Puntos</p>
+              <p id="cardPts" class="text-lg font-semibold">0 pts</p>
+            </div>
+
+            <div class="p-4 border rounded-lg">
+              <p class="text-sm text-gray-500">Kilos totales</p>
+              <p id="cardKg" class="text-lg font-semibold">0 kg</p>
+            </div>
+
+            <div class="p-4 border rounded-lg">
+              <p class="text-sm text-gray-500">Solicitudes realizadas</p>
+              <p id="cardReq" class="text-lg font-semibold">0</p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 border rounded-lg">
+              <h4 class="font-semibold">Acciones</h4>
+              <div class="mt-3 flex flex-col gap-3">
+                <button onclick="showView('request-view')" class="px-4 py-2 bg-green-600 text-white rounded-lg">Solicitar recolección</button>
+                <button onclick="generateSimulatedActivity()" class="px-4 py-2 border rounded-lg">Simular actividad de reciclaje</button>
+              </div>
+            </div>
+
+            <div class="p-4 border rounded-lg">
+              <h4 class="font-semibold">Última actividad</h4>
+              <div id="lastActivity" class="mt-3 text-sm text-gray-600">No hay actividad simulada aún.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- REQUEST (Solicitar recolección) -->
+        <section id="request-view" class="view bg-white rounded-lg p-6">
+          <h2 class="text-2xl font-bold">Solicitar recolección a domicilio</h2>
+          <p class="text-sm text-gray-500">Ingresa los datos y programa la recolección en Bogotá.</p>
+
+          <form id="requestForm" class="mt-4 space-y-3" onsubmit="event.preventDefault(); submitRequest();">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input id="reqName" type="text" placeholder="Nombre" class="px-3 py-2 border rounded-lg" required />
+              <input id="reqPhone" type="tel" placeholder="Teléfono" class="px-3 py-2 border rounded-lg" required />
+            </div>
+
+            <input id="reqAddress" type="text" placeholder="Dirección (Bogotá)" class="px-3 py-2 border rounded-lg" required />
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input id="reqDate" type="date" class="px-3 py-2 border rounded-lg" required />
+              <select id="reqTime" class="px-3 py-2 border rounded-lg">
+                <option value="08:00-10:00">08:00 - 10:00</option>
+                <option value="10:00-12:00">10:00 - 12:00</option>
+                <option value="14:00-16:00">14:00 - 16:00</option>
+                <option value="16:00-18:00">16:00 - 18:00</option>
+              </select>
+            </div>
+
+            <div>
+              <p class="text-sm text-gray-600">Selecciona las categorías (todas incluidas):</p>
+              <div id="categories" class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <!-- categories added by JS -->
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm text-gray-600">Peso estimado total (kg)</label>
+              <input id="reqKg" type="number" min="0" step="0.1" placeholder="Ej. 3.5" class="px-3 py-2 border rounded-lg" required />
+            </div>
+
+            <div class="flex gap-3">
+              <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg">Enviar solicitud</button>
+              <button type="button" onclick="resetRequestForm()" class="px-4 py-2 border rounded-lg">Limpiar</button>
+            </div>
+
+            <div id="requestMsg" class="mt-3 text-sm"></div>
+          </form>
+        </section>
+
+        <!-- CLASSIFICATION -->
+        <section id="classify-view" class="view bg-white rounded-lg p-6">
+          <h2 class="text-2xl font-bold">Clasificación de residuos</h2>
+          <p class="text-sm text-gray-500">Consejos rápidos para cada tipo de residuo.</p>
+
+          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Cards for all categories -->
+            <!-- We'll generate these via JS to ensure "todas" -->
+            <div id="classCards" class="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+          </div>
+        </section>
+
+        <!-- STATS -->
+        <section id="stats-view" class="view bg-white rounded-lg p-6">
+          <h2 class="text-2xl font-bold">Estadísticas personales (simuladas)</h2>
+          <p class="text-sm text-gray-500">Gráfica con kilos reciclados por mes (datos aleatorios generados localmente).</p>
+
+          <div class="mt-4">
+            <canvas id="statsChart" height="120"></canvas>
+          </div>
+
+          <div class="mt-4 flex gap-3">
+            <button onclick="regenerateStats()" class="px-4 py-2 bg-green-600 text-white rounded-lg">Regenerar datos simulados</button>
+            <button onclick="downloadStatsImage()" class="px-4 py-2 border rounded-lg">Descargar imagen</button>
+          </div>
+        </section>
+
+        <!-- REQUESTS LIST -->
+        <section id="requests-list-view" class="view bg-white rounded-lg p-6">
+          <h2 class="text-2xl font-bold">Mis solicitudes</h2>
+          <p class="text-sm text-gray-500">Lista de solicitudes realizadas (sesión actual — no persistente).</p>
+
+          <div id="requestsList" class="mt-4 space-y-3"></div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Scripts: data & behavior -->
+  <script>
+    /* -------------------------
+       Configuración básica
+       ------------------------- */
+    const CITY = 'Bogotá';
+    const CATEGORIES = [
+      { key:'plástico', label:'Plástico', tips: 'Enjuaga y aplasta botellas. Evita mezclar con orgánicos.' },
+      { key:'vidrio', label:'Vidrio', tips: 'Envases limpios y sin tapas de metal.' },
+      { key:'papel', label:'Papel y cartón', tips: 'Seco y plano; separa papeles con grasa.' },
+      { key:'orgánico', label:'Orgánicos', tips: 'Residuos de cocina: compostables si es posible.' },
+      { key:'metal', label:'Metales', tips: 'Latas aplastadas y secas.' },
+      { key:'tóxicos', label:'Tóxicos', tips: 'Pilas y restos peligrosos: llevar a punto verde.' },
+      { key:'textil', label:'Textil', tips: 'Ropa en buen estado puede donarse; rota se recicla como trapo.' },
+      { key:'otros', label:'Otros', tips: 'Residuos no clasificados: consultar punto de acopio.' }
+    ];
+
+    // Estado (no persistente - datos simulados)
+    let state = {
+      user: null,
+      points: 0,
+      kgTotal: 0,
+      monthlyKg: 0,
+      requests: [],          // solicitudes creadas en sesión
+      lastActivity: null,
+      statsData: null,
+    };
+
+    /* -------------------------
+       Utility & UI helpers
+       ------------------------- */
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const el = document.getElementById(viewId);
+      if (el) el.classList.add('active');
+      // update some contextual UI
+      updateSidebarMetrics();
+      if (viewId === 'stats-view') renderChart();
+      if (viewId === 'classify-view') renderClassCards();
+      if (viewId === 'requests-list-view') renderRequestsList();
+      if (viewId === 'dashboard-view') updateDashboard();
+    }
+
+    function updateSidebarMetrics() {
+      document.getElementById('userName').textContent = state.user ? state.user.name : 'Invitado';
+      document.getElementById('pts').textContent = state.points;
+      document.getElementById('kg').textContent = state.kgTotal.toFixed(1);
+    }
+
+    /* -------------------------
+       LOGIN
+       ------------------------- */
+    function login() {
+      const email = document.getElementById('email').value.trim();
+      const pwd = document.getElementById('password').value;
+      if (!email) { alert('Ingresa un correo.'); return; }
+      // Simulamos login y perfil
+      state.user = { email, name: email.split('@')[0].replace(/[.\-_]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) };
+      // iniciar con algunos valores simulados
+      state.points = Math.floor(Math.random()*800) + 200;
+      state.kgTotal = (Math.random()*50 + 5).toFixed(1);
+      state.monthlyKg = (Math.random()*12 + 1).toFixed(1);
+      state.statsData = generateStatsData();
+      state.requests = [];
+      state.lastActivity = 'Ingresaste a tu cuenta';
+      document.getElementById('login-view').classList.remove('active');
+      showView('dashboard-view');
+      updateSidebarMetrics();
+      updateDashboard();
+      renderChart();
+    }
+
+    function simulateLoginQuick() {
+      document.getElementById('email').value = 'juliana.escobar@example.com';
+      document.getElementById('password').value = 'demo';
+      login();
+    }
+
+    function logout() {
+      state = { user: null, points:0, kgTotal:0, monthlyKg:0, requests:[], lastActivity:null, statsData: null };
+      document.getElementById('email').value = '';
+      document.getElementById('password').value = '';
+      updateSidebarMetrics();
+      showView('login-view');
+    }
+
+    /* -------------------------
+       Solicitudes (recolección)
+       ------------------------- */
+    function initCategoriesUI() {
+      const container = document.getElementById('categories');
+      container.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const id = 'cat-' + cat.key;
+        const html = `
+          <label class="flex items-center gap-2 p-2 border rounded-lg cursor-pointer">
+            <input id="${id}" type="checkbox" value="${cat.key}" />
+            <span class="text-sm">${cat.label}</span>
+          </label>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function submitRequest() {
+      // leer campos
+      const name = document.getElementById('reqName').value.trim();
+      const phone = document.getElementById('reqPhone').value.trim();
+      const address = document.getElementById('reqAddress').value.trim();
+      const date = document.getElementById('reqDate').value;
+      const time = document.getElementById('reqTime').value;
+      const kg = parseFloat(document.getElementById('reqKg').value) || 0;
+
+      if (!name || !phone || !address || !date) {
+        showRequestMsg('Completa los campos obligatorios.', 'red'); return;
+      }
+
+      // categorias
+      const selected = CATEGORIES.filter(cat => document.getElementById('cat-'+cat.key).checked).map(c=>c.label);
+      // si no seleccionadas, asumimos todas (por tu elección "todas")
+      const categoriesSelected = selected.length ? selected : CATEGORIES.map(c=>c.label);
+
+      // generar solicitud simulada
+      const id = 'REQ-' + Date.now().toString(36).slice(-6).toUpperCase();
+      const req = {
+        id, name, phone, address, date, time, kg: Number(kg.toFixed(2)), categories: categoriesSelected, status: 'Programada'
+      };
+
+      state.requests.unshift(req);
+      // actualizar puntos/kg simulados (regla simple)
+      const ptsEarn = Math.round(req.kg * 10);
+      state.points += ptsEarn;
+      state.kgTotal = Number((Number(state.kgTotal) + req.kg).toFixed(1));
+      state.monthlyKg = Number((Number(state.monthlyKg) + req.kg).toFixed(1));
+      state.lastActivity = `Solicitaste recolección (${req.kg} kg) - ${id}`;
+
+      // actualizar UI
+      updateSidebarMetrics();
+      renderRequestsList();
+      updateDashboard();
+      showRequestMsg(`Solicitud ${id} creada. Puntos ganados: ${ptsEarn}.`, 'green');
+      resetRequestForm(false);
+      showView('requests-list-view');
+    }
+
+    function resetRequestForm(clearAll=true) {
+      if (clearAll) {
+        document.getElementById('reqName').value = '';
+        document.getElementById('reqPhone').value = '';
+        document.getElementById('reqAddress').value = '';
+        document.getElementById('reqDate').value = '';
+        document.getElementById('reqTime').selectedIndex = 0;
+        document.getElementById('reqKg').value = '';
+        CATEGORIES.forEach(c => { const el = document.getElementById('cat-' + c.key); if (el) el.checked = false; });
+      } else {
+        // solo limpiar mensaje
+      }
+    }
+
+    function showRequestMsg(text, color='gray') {
+      const el = document.getElementById('requestMsg');
+      el.textContent = text;
+      el.className = 'mt-3 text-sm';
+      if (color === 'green') el.style.color = '#059669';
+      else if (color === 'red') el.style.color = '#dc2626';
+      else el.style.color = '#374151';
+      setTimeout(()=> el.textContent = '', 6000);
+    }
+
+    function renderRequestsList() {
+      const list = document.getElementById('requestsList');
+      list.innerHTML = '';
+      if (!state.requests.length) { list.innerHTML = '<p class="text-sm text-gray-500">No has creado solicitudes aún.</p>'; return; }
+      state.requests.forEach(r => {
+        const html = `
+          <div class="border rounded-lg p-3 flex justify-between items-start">
+            <div>
+              <div class="text-sm text-gray-600">${r.date} • ${r.time}</div>
+              <div class="font-semibold">${r.id} — ${r.name}</div>
+              <div class="text-sm text-gray-700 mt-1">${r.kg} kg • ${r.categories.join(', ')}</div>
+              <div class="text-xs text-gray-500 mt-2">${r.address}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-sm font-semibold">${r.status}</div>
+              <div class="mt-2">
+                <button onclick="cancelRequest('${r.id}')" class="px-3 py-1 text-xs border rounded">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        `;
+        list.insertAdjacentHTML('beforeend', html);
+      });
+      document.getElementById('cardReq').textContent = state.requests.length;
+    }
+
+    function cancelRequest(id) {
+      const idx = state.requests.findIndex(r => r.id === id);
+      if (idx === -1) return;
+      // revert algo de puntos/kg (simple)
+      const r = state.requests[idx];
+      const ptsLost = Math.round(r.kg * 10);
+      state.points = Math.max(0, state.points - ptsLost);
+      state.kgTotal = Math.max(0, Number((state.kgTotal - r.kg).toFixed(1)));
+      state.monthlyKg = Math.max(0, Number((state.monthlyKg - r.kg).toFixed(1)));
+      state.requests.splice(idx,1);
+      state.lastActivity = `Cancelaste solicitud ${id}`;
+      updateSidebarMetrics();
+      renderRequestsList();
+      updateDashboard();
+    }
+
+    /* -------------------------
+       Clasificación UI
+       ------------------------- */
+    function renderClassCards() {
+      const container = document.getElementById('classCards');
+      container.innerHTML = '';
+      CATEGORIES.forEach(cat => {
+        const html = `
+          <div class="p-4 border rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center text-green-700 font-bold">${cat.label[0]}</div>
+              <div>
+                <div class="font-semibold">${cat.label}</div>
+                <div class="text-sm text-gray-600">${cat.tips}</div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-xs text-gray-500">Ejemplos:</div>
+              <div class="mt-1 text-sm text-gray-700"> ${examplesFor(cat.key)} </div>
+            </div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function examplesFor(key) {
+      switch(key) {
+        case 'plástico': return 'Botellas PET, envases, bolsas limpias.';
+        case 'vidrio': return 'Botellas, frascos, vasos (sin mezclar con cerámica).';
+        case 'papel': return 'Periódicos, cajas, folletos (secos).';
+        case 'orgánico': return 'Restos de comida, cáscaras, posos de café.';
+        case 'metal': return 'Latas de bebidas, tapas metálicas.';
+        case 'tóxicos': return 'Pilas, bombillas, pinturas (llevadas a punto verde).';
+        case 'textil': return 'Ropa, sábanas (donar si sirven).';
+        default: return 'Residuos especiales y voluminosos.';
+      }
+    }
+
+    /* -------------------------
+       Estadísticas (simuladas)
+       ------------------------- */
+    function generateStatsData() {
+      // Genera últimos 6 meses (nombres y kilos aleatorios)
+      const months = [];
+      const values = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString('es-CO', { month: 'short', year: 'numeric' });
+        months.push(label);
+        // simulación: base por usuario (si existe) + variación
+        const base = (state.user ? 4 + Math.random()*8 : 1 + Math.random()*3);
+        values.push(Number((base + Math.random()*6).toFixed(1)));
+      }
+      state.statsData = { labels: months, values };
+      return state.statsData;
+    }
+
+    let statsChart = null;
+    function renderChart() {
+      if (!state.statsData) state.statsData = generateStatsData();
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      if (statsChart) statsChart.destroy();
+      statsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: state.statsData.labels,
+          datasets: [{
+            label: 'kg reciclados',
+            data: state.statsData.values,
+            borderRadius: 6,
+            backgroundColor: 'rgba(16,185,129,0.85)',
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 2 }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    function regenerateStats() {
+      generateStatsData();
+      state.monthlyKg = state.statsData.values[state.statsData.values.length -1];
+      renderChart();
+      updateDashboard();
+    }
+
+    function downloadStatsImage() {
+      if (!statsChart) { alert('Genera la gráfica primero.'); return; }
+      const url = statsChart.toBase64Image();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'estadisticas_reciclaje.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    /* -------------------------
+       Dashboard helpers
+       ------------------------- */
+    function updateDashboard() {
+      document.getElementById('cardPts').textContent = state.points + ' pts';
+      document.getElementById('cardKg').textContent = state.kgTotal + ' kg';
+      document.getElementById('cardReq').textContent = state.requests.length;
+      document.getElementById('monthlyKg').textContent = (state.monthlyKg || 0) + ' kg';
+      document.getElementById('lastActivity').textContent = state.lastActivity || 'Sin actividad';
+      document.getElementById('monthlyKg').textContent = (Number(state.monthlyKg) || 0) + ' kg';
+      document.getElementById('monthlyKg').textContent = Number(state.monthlyKg).toFixed(1) + ' kg';
+      document.getElementById('cardKg').textContent = Number(state.kgTotal).toFixed(1) + ' kg';
+      document.getElementById('pts').textContent = state.points;
+      document.getElementById('kg').textContent = Number(state.kgTotal).toFixed(1);
+      document.getElementById('monthlyKg').textContent = Number(state.monthlyKg).toFixed(1) + ' kg';
+    }
+
+    /* -------------------------
+       Simulación de actividad rápida
+       ------------------------- */
+    function generateSimulatedActivity() {
+      // crea una "actividad" aleatoria que afecte puntos y kilos
+      const kg = Number((1 + Math.random()*6).toFixed(1));
+      const pts = Math.round(kg * 8 + Math.random()*10);
+      state.kgTotal = Number((Number(state.kgTotal) + kg).toFixed(1));
+      state.monthlyKg = Number((Number(state.monthlyKg) + kg).toFixed(1));
+      state.points += pts;
+      state.lastActivity = `Actividad simulada: reciclaste ${kg} kg (+${pts} pts)`;
+      state.statsData = generateStatsData();
+      // aumentar último mes en kg
+      if (state.statsData && state.statsData.values.length) {
+        state.statsData.values[state.statsData.values.length - 1] = Number((Number(state.statsData.values[state.statsData.values.length - 1]) + kg).toFixed(1));
+      }
+      updateSidebarMetrics();
+      updateDashboard();
+      renderChart();
+    }
+
+    /* -------------------------
+       Inicialización
+       ------------------------- */
+    function init() {
+      initCategoriesUI();
+      renderClassCards();
+      // preconfig: user invitado
+      state.user = null;
+      state.points = 0;
+      state.kgTotal = 0;
+      state.monthlyKg = 0;
+      state.requests = [];
+      state.statsData = generateStatsData();
+      renderChart();
+      showView('login-view'); // iniciar con login activo
+    }
+
+    // Ejecutar init al cargar
+    window.addEventListener('load', init);
+
+  </script>
+</body>
+</html>
